@@ -1,118 +1,130 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, { useEffect } from 'react';
 import {
   SafeAreaView,
-  ScrollView,
-  StatusBar,
   StyleSheet,
-  Text,
-  useColorScheme,
+  ScrollView,
   View,
+  Text,
+  StatusBar,
+  TouchableOpacity,
+  Platform,
+  Linking,
 } from 'react-native';
+import { Header, Colors } from 'react-native/Libraries/NewAppScreen';
+import BackgroundJob from 'react-native-background-actions';
+import BackgroundFetch from "react-native-background-fetch";
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const sleep = (time: any) => new Promise<void>((resolve) => setTimeout(() => resolve(), time));
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+BackgroundJob.on('expiration', () => {
+  console.log('iOS: I am being closed!');
+});
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+const upload = async () => {
+  const newLog = {
+    createdAt: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(),
+    name: 'Background Fetch',
   };
 
+  try {
+    const res = await fetch("https://670e2a6d073307b4ee45b877.mockapi.io/api/test/log", {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(newLog)
+    });
+
+    if (res.ok) {
+      const task = await res.json();
+      // do something with the new task
+    } else {
+      // handle error
+    }
+  } catch (error) {
+    // handle error
+  }
+};
+
+
+const options = {
+  taskName: 'Background Upload',
+  taskTitle: 'Background Upload Running',
+  taskDesc: 'Uploading logs in the background',
+  taskIcon: {
+    name: 'ic_launcher',
+    type: 'mipmap',
+  },
+  color: '#ff00ff',
+  linkingURI: 'yourSchemeHere://chat/jane', // See Deep Linking for more info
+  parameters: {
+    delay: 60000,
+  },
+};
+
+const App = () => {
+  useEffect(() => {
+    // Configure BackgroundFetch
+    BackgroundFetch.configure({
+      minimumFetchInterval: 15,     // <-- minutes (15 is minimum allowed)
+      forceAlarmManager: false,     // <-- Set true to bypass JobScheduler.
+      stopOnTerminate: false,
+      startOnBoot: true,
+      requiredNetworkType: BackgroundFetch.NETWORK_TYPE_NONE,
+      requiresCharging: false,
+      requiresDeviceIdle: false,
+      requiresBatteryNotLow: false,
+      requiresStorageNotLow: false
+    }, async (taskId) => {
+      console.log("[js] Received background-fetch event: ", taskId);
+      await upload();
+      BackgroundFetch.finish(taskId);
+    }, (error) => {
+      console.log("[js] RNBackgroundFetch failed to start", error);
+    });
+
+    BackgroundFetch.status((status) => {
+      switch(status) {
+        case BackgroundFetch.STATUS_RESTRICTED:
+          console.log("BackgroundFetch restricted");
+          break;
+        case BackgroundFetch.STATUS_DENIED:
+          console.log("BackgroundFetch denied");
+          break;
+        case BackgroundFetch.STATUS_AVAILABLE:
+          console.log("BackgroundFetch is enabled");
+          break;
+      }
+    });
+
+    // Start the intensive task
+    // BackgroundJob.start(veryIntensiveTask, options);
+
+    return () => {
+      console.log('App is going to be closed');
+      BackgroundJob.stop();
+    };
+  }, []);
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
+    <SafeAreaView>
+      <ScrollView>
         <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
+        <View style={styles.body}>
+          <Text>Test background</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
+};
 
 export default App;
+
+const styles = StyleSheet.create({
+  scrollView: {
+    // Your styles here
+  },
+  body: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
